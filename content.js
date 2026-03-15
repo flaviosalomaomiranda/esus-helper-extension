@@ -687,6 +687,15 @@
     const anchorRoot = getAgendaCitizenAnchorRoot();
     if (!anchorRoot) return;
 
+    // Mantém largura do painel alinhada ao campo "Agenda do cidadão"
+    // para evitar expansão horizontal em layouts largos.
+    let panelMaxWidthPx = 360;
+    const citizenField = anchorRoot.querySelector("select, input, [role='combobox']");
+    if (citizenField && typeof citizenField.getBoundingClientRect === "function") {
+      const w = Math.round(citizenField.getBoundingClientRect().width || 0);
+      if (w >= 220 && w <= 700) panelMaxWidthPx = w;
+    }
+
     let panel = document.getElementById(REMARCAR_PANEL_ID);
     if (!panel) {
       panel = document.createElement("div");
@@ -698,7 +707,7 @@
       panel.style.padding = "8px";
       panel.style.fontSize = "12px";
       panel.style.width = "100%";
-      panel.style.maxWidth = "100%";
+      panel.style.maxWidth = `${panelMaxWidthPx}px`;
       panel.style.boxSizing = "border-box";
       panel.style.overflow = "hidden";
       panel.innerHTML = `
@@ -723,6 +732,10 @@
       `;
       anchorRoot.appendChild(panel);
     }
+
+    // Reaplica em cada refresh (muda com zoom/layout/data).
+    panel.style.width = "100%";
+    panel.style.maxWidth = `${panelMaxWidthPx}px`;
 
     const items = getRemarcarItemsForCurrentProfessional();
     const openReminderBtn = panel.querySelector("#esus-open-lembrete");
