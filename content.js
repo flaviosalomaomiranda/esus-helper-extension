@@ -208,29 +208,45 @@
     return [...pending, ...done];
   }
 
-  function archiveRemarcarItem(itemId) {
+  function archiveRemarcarItem(itemToArchive) {
     const store = loadRemarcarStore();
     const profKey = getProfessionalStoreKey();
     const list = purgeOldRemarcarItems(store[profKey] || []);
-    const idx = list.findIndex((x) => x.id === itemId);
-    if (idx < 0) return false;
+    if (!itemToArchive) return false;
 
-    const item = list[idx];
-    if (!item || item.status !== "done") return false;
+    // Remove de forma robusta (inclui cenários antigos sem id único estável
+    // e evita item "fantasma" quando há duplicidade).
+    const matchById = String(itemToArchive.id || "").trim();
+    const sameIdentity = (x) => {
+      if (!x) return false;
+      if (matchById && String(x.id || "") === matchById) return true;
+      return (
+        String(x.patient || "") === String(itemToArchive.patient || "") &&
+        String(x.phoneDisplay || "") === String(itemToArchive.phoneDisplay || "") &&
+        String(x.hour || "") === String(itemToArchive.hour || "") &&
+        String(x.doneDateLabel || "") === String(itemToArchive.doneDateLabel || "")
+      );
+    };
 
-    list.splice(idx, 1);
-    store[profKey] = list;
+    const toArchive = list.filter((x) => sameIdentity(x) && x.status === "done");
+    if (toArchive.length === 0) return false;
+
+    const nextList = list.filter((x) => !sameIdentity(x));
+    store[profKey] = nextList;
     saveRemarcarStore(store);
 
     const archive = loadRemarcarArchiveStore();
     const ubsKey = getUbsStoreKey();
     const bucket = Array.isArray(archive[ubsKey]) ? archive[ubsKey] : [];
-    bucket.push({
-      ...item,
-      archivedAt: Date.now(),
-      archivedFromProfessional: getProfessionalDisplayName(),
-      archivedFromProfile: profKey,
-      archivedUbsName: getUnitName(),
+    const now = Date.now();
+    toArchive.forEach((item) => {
+      bucket.push({
+        ...item,
+        archivedAt: now,
+        archivedFromProfessional: getProfessionalDisplayName(),
+        archivedFromProfile: profKey,
+        archivedUbsName: getUnitName(),
+      });
     });
     archive[ubsKey] = bucket.slice(-5000);
     saveRemarcarArchiveStore(archive);
@@ -928,7 +944,7 @@
         archiveBtn.style.padding = "3px 8px";
         archiveBtn.style.cursor = "pointer";
         archiveBtn.onclick = () => {
-          const ok = archiveRemarcarItem(item.id);
+          const ok = archiveRemarcarItem(item);
           if (ok) renderRemarcarPanel();
         };
         actions.appendChild(archiveBtn);
